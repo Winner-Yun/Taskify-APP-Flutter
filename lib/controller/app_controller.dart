@@ -1,8 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart'; // Needed for Locale
 import 'package:get/get.dart';
 import 'package:to_do_list_app/controller/db_controller.dart';
-import 'package:to_do_list_app/data/local_db_helper.dart'; // Import SQLite Helper
-import 'package:to_do_list_app/main.dart'; // To access isDarkMode global
+import 'package:to_do_list_app/data/local_db_helper.dart';
+import 'package:to_do_list_app/main.dart';
 import 'package:to_do_list_app/model/user_model.dart';
 
 class AppController extends GetxController {
@@ -15,16 +16,29 @@ class AppController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // 1. Load Dark Mode Preference from SQL
+    // 1. Load Dark Mode
     _loadTheme();
 
-    // 2. Bind User Data
+    // 2. Load Language (NEW)
+    _loadLanguage();
+
+    // 3. Bind User Data
     bindUser();
   }
 
   void _loadTheme() async {
     bool savedTheme = await localDb.getDarkMode();
     isDarkMode.value = savedTheme;
+  }
+
+  // --- NEW FUNCTION TO LOAD LANGUAGE ---
+  void _loadLanguage() async {
+    String langCode = await localDb.getLanguage();
+    if (langCode == 'km') {
+      Get.updateLocale(const Locale('km', 'KH'));
+    } else {
+      Get.updateLocale(const Locale('en', 'US'));
+    }
   }
 
   void bindUser() {

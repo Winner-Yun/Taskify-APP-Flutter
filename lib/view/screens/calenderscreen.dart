@@ -1,44 +1,317 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart'; // Added for DateFormat
 import 'package:table_calendar/table_calendar.dart';
 import 'package:to_do_list_app/config/appcolor.dart';
-import 'package:to_do_list_app/controller/task_controller.dart'; // Import TaskController
+import 'package:to_do_list_app/controller/task_controller.dart';
 import 'package:to_do_list_app/main.dart';
-import 'package:to_do_list_app/model/task_model.dart'; // Import Model
+import 'package:to_do_list_app/model/task_model.dart';
+import 'package:to_do_list_app/view/screens/add_update_list.dart'; // Added for Navigation
 
 class Calenderscreen extends StatefulWidget {
   final void Function(DateTime?, List<TaskModel>) onDayUpdated;
+  final DateTime? initialDate;
 
-  const Calenderscreen({super.key, required this.onDayUpdated});
+  const Calenderscreen({
+    super.key,
+    required this.onDayUpdated,
+    this.initialDate,
+  });
 
   @override
   State<Calenderscreen> createState() => _CalenderscreenState();
 }
 
 class _CalenderscreenState extends State<Calenderscreen> {
-  DateTime focusedDay = DateTime.now();
-  DateTime? selectedDay = DateTime.now();
+  late DateTime focusedDay;
+  late DateTime? selectedDay;
+  bool _isLoading = false; // Added for loading state
 
-  // CHANGE: Use TaskController directly
   final TaskController taskController = Get.find<TaskController>();
+
+  // ==========================================
+  //  LOGIC COPIED & ADAPTED FROM APPMAINSCREEN
+  // ==========================================
+
+  Future<void> _simulateLoading(VoidCallback action) async {
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (mounted) {
+      setState(() => _isLoading = false);
+      action();
+    }
+  }
+
+  bool _isFutureOrToday() {
+    if (selectedDay == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final selected = DateTime(
+      selectedDay!.year,
+      selectedDay!.month,
+      selectedDay!.day,
+    );
+    return !selected.isBefore(today);
+  }
+
+  List<TaskModel> _getValidReminderTasks(List<TaskModel> allTasks) {
+    return allTasks.where((task) {
+      if (task.reminder) return true;
+      if (task.taskTimestamp != null && task.taskTimestamp!.isNotEmpty) {
+        DateTime? tDate = DateTime.tryParse(task.taskTimestamp!);
+        if (tDate != null && tDate.isBefore(DateTime.now())) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+  }
+
+  void showCalendarMenu(BuildContext context) {
+    if (selectedDay == null) return;
+
+    // Keep date logic in English format for DB lookup
+    String dateStr = DateFormat('MMM d, yyyy').format(selectedDay!);
+    List<TaskModel> currentEvents = taskController.getTasksByDate(dateStr);
+    List<TaskModel> validReminderTasks = _getValidReminderTasks(currentEvents);
+
+    bool showReminderOption = validReminderTasks.isNotEmpty;
+    bool hasEvents = currentEvents.isNotEmpty;
+    bool isTodayOrFuture = _isFutureOrToday();
+
+    String reminderText = "reminder".tr; // Translated
+    IconData reminderIcon = Icons.alarm;
+
+    if (validReminderTasks.length == 1) {
+      if (validReminderTasks.first.reminder) {
+        reminderText = "remove_reminder".tr; // Translated
+        reminderIcon = Icons.alarm_off;
+      } else {
+        reminderText = "add_reminder".tr; // Translated
+        reminderIcon = Icons.alarm_add;
+      }
+    }
+
+    showMenu<String>(
+      context: context,
+      // Adjust position for Calendar Screen
+      position: RelativeRect.fromLTRB(
+        MediaQuery.of(context).size.width,
+        MediaQuery.of(context).size.height * 0.5,
+        0,
+        0,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      color: Colors.redAccent,
+      items: [
+        if (isTodayOrFuture)
+          PopupMenuItem(
+            value: "add",
+            child: _buildMenuItem(Icons.add, "add".tr), // Translated
+          ),
+        if (hasEvents) ...[
+          if (showReminderOption)
+            PopupMenuItem(
+              value: "toggleReminder",
+              child: _buildMenuItem(reminderIcon, reminderText),
+            ),
+          PopupMenuItem(
+            value: "edit",
+            child: _buildMenuItem(Icons.edit, "edit".tr), // Translated
+          ),
+          PopupMenuItem(
+            value: "delete",
+            child: _buildMenuItem(Icons.delete, "delete".tr), // Translated
+          ),
+          PopupMenuItem(
+            value: "deleteAll",
+            child: _buildMenuItem(
+              Icons.delete_forever,
+              "delete_all".tr,
+            ), // Translated
+          ),
+        ],
+      ],
+    ).then((value) {
+      if (value == null) return;
+      _handleMenuSelection(value, currentEvents);
+    });
+  }
+
+  Widget _buildMenuItem(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white),
+        const SizedBox(width: 12),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _handleMenuSelection(String value, List<TaskModel> currentEvents) {
+    switch (value) {
+      case "add":
+        _simulateLoading(() {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              // Pass selectedDay as initialDate
+              builder: (context) => TaskHomeScreen(initialDate: selectedDay!),
+            ),
+          );
+        });
+        break;
+      case "toggleReminder":
+        List<TaskModel> validTasks = _getValidReminderTasks(currentEvents);
+        if (validTasks.isEmpty) {
+          Get.snackbar(
+            "expired".tr, // Translated
+            "no_valid_tasks".tr, // Translated
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 2),
+          );
+          return;
+        }
+        _selectTaskAndAction(
+          validTasks,
+          (task) => taskController.addReminder(task),
+        );
+        break;
+      case "edit":
+        _selectTaskAndAction(currentEvents, (task) {
+          _simulateLoading(() {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TaskHomeScreen(task: task),
+              ),
+            );
+          });
+        });
+        break;
+      case "delete":
+        _selectTaskAndAction(currentEvents, (task) {
+          taskController.deleteTask(task.id);
+          Get.snackbar(
+            "deleted".tr, // Translated
+            "task_removed".tr, // Translated
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        });
+        break;
+      case "deleteAll":
+        _confirmDeleteAll(currentEvents);
+        break;
+    }
+  }
+
+  void _confirmDeleteAll(List<TaskModel> tasks) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("delete_all_confirm".tr), // Translated
+        content: Text("delete_all_msg".tr), // Translated
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              "cancel".tr,
+              style: const TextStyle(color: Colors.amber),
+            ), // Translated
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              for (var task in tasks) {
+                taskController.deleteTask(task.id);
+              }
+              Get.snackbar(
+                "deleted".tr, // Translated (using 'Deleted' key roughly)
+                "all_tasks_removed".tr, // Translated
+                backgroundColor: Colors.red,
+                colorText: Colors.white,
+              );
+            },
+            child: Text(
+              "delete_all".tr, // Translated
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _selectTaskAndAction(
+    List<TaskModel> events,
+    Function(TaskModel) onTaskSelected,
+  ) {
+    if (events.isEmpty) return;
+    if (events.length == 1) {
+      onTaskSelected(events.first);
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text("select_task".tr), // Translated
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: events.length,
+                itemBuilder: (context, index) {
+                  final task = events[index];
+                  final status = task.reminder
+                      ? "has_reminder".tr
+                      : ""; // Translated
+                  return ListTile(
+                    title: Text(task.text),
+                    subtitle: Text("${task.time} $status"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      onTaskSelected(task);
+                    },
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  // ==========================================
+  //  EXISTING CALENDAR LOGIC (Unchanged)
+  // ==========================================
+
+  // ... (generateEventsFromTasks, parseDate, getEventsForDay methods remain the same) ...
+  // Hidden for brevity, no text to translate inside these logic functions.
 
   Map<DateTime, List<TaskModel>> generateEventsFromTasks() {
     Map<DateTime, List<TaskModel>> eventMap = {};
-
     for (var task in taskController.tasks) {
       try {
         DateTime date = parseDate(task.date);
-        // Normalize date to UTC midnight for TableCalendar
         final key = DateTime.utc(date.year, date.month, date.day);
-
         if (!eventMap.containsKey(key)) {
           eventMap[key] = [];
         }
-        // STORE THE FULL TASK OBJECT, NOT JUST STRING
         eventMap[key]!.add(task);
-      } catch (e) {
-        // ignore invalid dates
-      }
+        // ignore: empty_catches
+      } catch (e) {}
     }
     return eventMap;
   }
@@ -69,7 +342,6 @@ class _CalenderscreenState extends State<Calenderscreen> {
     }
   }
 
-  /// 2. Get Events for a specific day
   List<TaskModel> getEventsForDay(DateTime day) {
     final events = generateEventsFromTasks();
     final key = DateTime.utc(day.year, day.month, day.day);
@@ -79,7 +351,9 @@ class _CalenderscreenState extends State<Calenderscreen> {
   @override
   void initState() {
     super.initState();
-    // Delay callback to ensure parent is built
+    focusedDay = widget.initialDate ?? DateTime.now();
+    selectedDay = widget.initialDate ?? DateTime.now();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         widget.onDayUpdated(selectedDay, getEventsForDay(selectedDay!));
@@ -93,7 +367,6 @@ class _CalenderscreenState extends State<Calenderscreen> {
       valueListenable: isDarkMode,
       builder: (context, bool dark, child) {
         return Obx(() {
-          // Listen to task changes
           // ignore: unused_local_variable
           final _ = taskController.tasks.length;
 
@@ -101,16 +374,101 @@ class _CalenderscreenState extends State<Calenderscreen> {
               ? getEventsForDay(selectedDay!)
               : <TaskModel>[];
 
-          return Container(
-            color: AppColors.background(dark),
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              children: [
-                _buildCalendar(dark),
-                const SizedBox(height: 10),
-                Expanded(child: _buildEventList(dark, eventsForDay)),
-              ],
-            ),
+          // --- Determine FAB Visibility ---
+          bool isTodayOrFuture = _isFutureOrToday();
+          bool hasEvents = eventsForDay.isNotEmpty;
+          bool showFab = isTodayOrFuture || hasEvents;
+
+          return Stack(
+            children: [
+              Scaffold(
+                backgroundColor: AppColors.background(dark),
+                appBar: AppBar(
+                  elevation: 0,
+                  backgroundColor: Colors.transparent,
+                  flexibleSpace: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Color.fromARGB(255, 191, 2, 24),
+                          Color.fromARGB(255, 23, 0, 40),
+                        ],
+                      ),
+                    ),
+                  ),
+                  leading: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  title: Text(
+                    "calendar_mode"
+                        .tr, // Translated "Calendar Mode" or "Calendar"
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+
+                // --- FLOATING ACTION BUTTON ---
+                floatingActionButtonLocation:
+                    FloatingActionButtonLocation.centerFloat,
+                floatingActionButton: showFab
+                    ? Container(
+                        height: 65,
+                        width: 65,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color.fromARGB(255, 191, 2, 24),
+                              Color.fromARGB(255, 23, 0, 40),
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(.2),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            isTodayOrFuture ? Icons.add : Icons.edit_note,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                          onPressed: () => showCalendarMenu(context),
+                        ),
+                      )
+                    : null,
+
+                body: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Column(
+                    children: [
+                      _buildCalendar(dark),
+                      const SizedBox(height: 10),
+                      Expanded(child: _buildEventList(dark, eventsForDay)),
+                    ],
+                  ),
+                ),
+              ),
+
+              // --- LOADING OVERLAY ---
+              if (_isLoading)
+                Container(
+                  color: Colors.black.withOpacity(0.5),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                ),
+            ],
           );
         });
       },
@@ -131,7 +489,6 @@ class _CalenderscreenState extends State<Calenderscreen> {
           selectedDay = selected;
           focusedDay = focused;
         });
-        // Pass the List<TaskModel> back to parent
         widget.onDayUpdated(selectedDay, getEventsForDay(selected));
       },
 
@@ -168,9 +525,6 @@ class _CalenderscreenState extends State<Calenderscreen> {
     );
   }
 
-  // ==========================================
-  // UPDATED LIST WITH REMINDER NOTE
-  // ==========================================
   Widget _buildEventList(bool dark, List<TaskModel> events) {
     return ListView(
       children: [
@@ -224,8 +578,6 @@ class _CalenderscreenState extends State<Calenderscreen> {
                                 color: AppColors.text(dark).withOpacity(0.6),
                               ),
                             ),
-
-                            // ---- SHOW NOTE IF REMINDER IS ON ----
                             if (task.reminder) ...[
                               const SizedBox(width: 12),
                               Icon(
@@ -235,7 +587,7 @@ class _CalenderscreenState extends State<Calenderscreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                "Reminder On",
+                                "reminder_on".tr, // Translated
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -256,7 +608,7 @@ class _CalenderscreenState extends State<Calenderscreen> {
           Padding(
             padding: const EdgeInsets.all(20),
             child: Text(
-              "No events for this day...",
+              "no_events".tr, // Translated
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,

@@ -9,56 +9,16 @@ import 'package:to_do_list_app/model/notification_model.dart';
 final String today = DateFormat('MMM d, yyyy').format(DateTime.now());
 
 class NotificationScreen extends StatelessWidget {
-  NotificationScreen({super.key});
-
+  final int currentMode;
+  NotificationScreen({super.key, this.currentMode = 0});
   final NotificationController controller = Get.put(NotificationController());
 
   DateTime _parseDate(String date) {
     try {
       return DateFormat("MMM d, yyyy").parse(date);
     } catch (e) {
+      // Fallback for Daily/Weekly labels to Today
       return DateTime.now();
-    }
-  }
-
-  // --- NEW LOGIC: Filter out Future Notifications ---
-  bool _shouldShowNotification(NotificationModel item) {
-    try {
-      // 1. Parse the Scheduled Date (e.g. "Jan 20, 2026")
-      DateTime datePart = DateFormat("MMM d, yyyy").parse(item.date);
-
-      // 2. Extract Time from Message (e.g. "10:30 AM")
-      // Regex looks for pattern like "10:30 AM" or "9:00 PM"
-      RegExp timeRegex = RegExp(r"(\d{1,2}:\d{2}\s?[AP]M)");
-      Match? match = timeRegex.firstMatch(item.message);
-
-      if (match != null) {
-        String timeStr = match.group(0)!;
-        DateTime timePart = DateFormat("h:mm a").parse(timeStr);
-
-        // 3. Combine Date + Time
-        DateTime scheduledFullTime = DateTime(
-          datePart.year,
-          datePart.month,
-          datePart.day,
-          timePart.hour,
-          timePart.minute,
-        );
-
-        // 4. SHOW ONLY IF: Current Time > Scheduled Time
-        return DateTime.now().isAfter(scheduledFullTime);
-      }
-
-      // Fallback: If no time found, just check the Day
-      // If the date is Today or Past -> Show it. If Future -> Hide it.
-      final now = DateTime.now();
-      final todayMidnight = DateTime(now.year, now.month, now.day);
-
-      // return true if datePart is BEFORE or SAME as today
-      return !datePart.isAfter(todayMidnight);
-    } catch (e) {
-      // If parsing fails, default to showing it to avoid hiding real data
-      return true;
     }
   }
 
@@ -68,18 +28,30 @@ class NotificationScreen extends StatelessWidget {
       valueListenable: isDarkMode,
       builder: (context, bool dark, _) {
         return Obx(() {
-          // 1. GET ALL & FILTER
-          // We only keep notifications that have "passed" (are in the past)
           final allNotifications = controller.notifications;
-          final activeNotifications = allNotifications
-              .where((item) => _shouldShowNotification(item))
-              .toList();
+
+          // UPDATED: Filter by Current Mode
+          final activeNotifications = allNotifications.where((item) {
+            // 1. Always hide Special Events (as requested)
+            if (item.title == "Special Event") return false;
+
+            // 2. Strict Mode Filtering
+            if (currentMode == 2) {
+              // Mode 2 (Daily): Show ONLY "Daily Task"
+              return item.title == "Daily Task";
+            } else if (currentMode == 1) {
+              // Mode 1 (Weekly): Show ONLY "Routine"
+              return item.title == "Routine";
+            } else {
+              // Mode 0 (Calendar): Show everything else (exclude Daily & Routine)
+              return item.title != "Daily Task" && item.title != "Routine";
+            }
+          }).toList();
 
           if (activeNotifications.isEmpty) {
             return _buildEmptyState(dark);
           }
 
-          // 2. GROUP BY DATE (Recent vs Older)
           final todayDate = _parseDate(today);
           final sevenDaysAgo = todayDate.subtract(const Duration(days: 1));
 
@@ -114,7 +86,7 @@ class NotificationScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            "No notifications yet",
+            "no_notifications".tr,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -135,11 +107,11 @@ class NotificationScreen extends StatelessWidget {
       padding: const EdgeInsets.only(top: 10),
       children: [
         if (recent.isNotEmpty) ...[
-          _buildSectionTitle("Recent", dark),
+          _buildSectionTitle("recent".tr, dark),
           ...recent.map((item) => _buildNotificationCard(item, dark)),
         ],
         if (older.isNotEmpty) ...[
-          _buildSectionTitle("Last 7 days", dark),
+          _buildSectionTitle("last_7_days".tr, dark),
           ...older.map((item) => _buildNotificationCard(item, dark)),
         ],
         const SizedBox(height: 20),
@@ -241,7 +213,7 @@ class NotificationScreen extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: InkWell(
-                    onTap: () => controller.deleteNotification(item.id),
+                    onTap: () => controller.deleteNotification(item),
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -252,9 +224,9 @@ class NotificationScreen extends StatelessWidget {
                         color: Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        "Remove",
-                        style: TextStyle(
+                      child: Text(
+                        "remove".tr,
+                        style: const TextStyle(
                           color: Colors.red,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,

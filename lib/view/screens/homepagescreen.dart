@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart'; // REQUIRED: Import this for DateFormat
+import 'package:intl/intl.dart';
 import 'package:to_do_list_app/config/appcolor.dart';
 import 'package:to_do_list_app/controller/app_controller.dart';
 import 'package:to_do_list_app/controller/task_controller.dart';
@@ -12,8 +12,17 @@ import 'package:to_do_list_app/view/screens/add_update_list.dart';
 
 class Homepagescreen extends StatefulWidget {
   final VoidCallback onGoSetting;
+  final Function(DateTime) onDateSelected;
+  final Function(int mode, String dayValue) onModeChanged;
+  final int initialMode; // 0=Cal, 1=Week, 2=Day
 
-  const Homepagescreen({super.key, required this.onGoSetting});
+  const Homepagescreen({
+    super.key,
+    required this.onGoSetting,
+    required this.onDateSelected,
+    required this.onModeChanged,
+    this.initialMode = 0,
+  });
 
   @override
   State<Homepagescreen> createState() => _HomepagescreenState();
@@ -24,11 +33,79 @@ class _HomepagescreenState extends State<Homepagescreen> {
   final AppController appController = Get.find<AppController>();
 
   String searchQuery = "";
+  late int currentMode;
   DateTime selectedDay = DateTime.now();
+
+  // We keep English keys here for logic, but translate them in the UI
+  final List<String> weekDays = [
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat",
+    "Sun",
+  ];
+  late String selectedRoutineDay;
+  late String fullRoutineDayName;
+
+  @override
+  void initState() {
+    super.initState();
+    currentMode = widget.initialMode;
+    // logic variables remain in English for data matching
+    fullRoutineDayName = DateFormat('EEEE').format(DateTime.now());
+    selectedRoutineDay = DateFormat('E').format(DateTime.now());
+  }
+
+  @override
+  void didUpdateWidget(Homepagescreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialMode != widget.initialMode) {
+      setState(() {
+        currentMode = widget.initialMode;
+      });
+    }
+  }
+
+  void _switchMode(int mode) {
+    setState(() {
+      currentMode = mode;
+    });
+    // Notify parent
+    if (mode == 1) {
+      widget.onModeChanged(1, selectedRoutineDay);
+    } else if (mode == 2) {
+      widget.onModeChanged(2, "Daily");
+    } else {
+      widget.onModeChanged(0, selectedDay.toIso8601String());
+      widget.onDateSelected(selectedDay);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = isDarkMode.value;
+
+    String titleText = "";
+    if (currentMode == 2) {
+      // 1. Daily Mode
+      titleText = "everyday_routine".tr;
+    } else if (currentMode == 1) {
+      // 2. Weekly Mode: "Monday's Routine"
+      // We translate the day name and append the localized suffix
+      titleText = "${fullRoutineDayName.tr}${"routine_for".tr}";
+    } else {
+      // 3. Calendar Mode
+      if (_isSameDay(selectedDay, DateTime.now())) {
+        titleText = "todays_task".tr;
+      } else {
+        // Custom date translation: "Jan" -> "មករា"
+        String monthRaw = DateFormat('MMM').format(selectedDay);
+        String dayNum = selectedDay.day.toString();
+        titleText = "${monthRaw.tr} $dayNum ${"tasks".tr}";
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.all(10.0),
@@ -37,10 +114,12 @@ class _HomepagescreenState extends State<Homepagescreen> {
         children: [
           _buildheaderTitle(isDark),
           const SizedBox(height: 20),
-          _buildTabbar(isDark),
-          const SizedBox(height: 10),
+          _buildModeToggle(isDark),
+          const SizedBox(height: 20),
+          if (currentMode != 2) _buildTabbar(isDark), // Hide tabbar for Daily
+          if (currentMode != 2) const SizedBox(height: 10),
           Text(
-            "Today's Task",
+            titleText,
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -54,26 +133,88 @@ class _HomepagescreenState extends State<Homepagescreen> {
     );
   }
 
-  // ==========================================
-  //  HEADER
-  // ==========================================
+  Widget _buildModeToggle(bool isDark) {
+    return Container(
+      height: 45,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.card(isDark),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: AppColors.primary(isDark).withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          _buildToggleBtn(
+            "calendar".tr, // Translated
+            currentMode == 0,
+            isDark,
+            () => _switchMode(0),
+          ),
+          _buildToggleBtn(
+            "weekly".tr, // Translated
+            currentMode == 1,
+            isDark,
+            () => _switchMode(1),
+          ),
+          _buildToggleBtn(
+            "daily".tr, // Translated
+            currentMode == 2,
+            isDark,
+            () => _switchMode(2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleBtn(
+    String text,
+    bool isActive,
+    bool isDark,
+    VoidCallback onTap,
+  ) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isActive ? AppColors.primary(isDark) : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: isActive
+                  ? Colors.white
+                  : AppColors.text(isDark).withOpacity(0.6),
+              fontWeight: FontWeight.bold,
+              fontSize: 12, // Adjusted font size for Khmer
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
   Widget _buildheaderTitle(bool isDark) {
     final hour = DateTime.now().hour;
-    String greeting;
-
-    if (hour >= 5 && hour < 12) {
-      greeting = "Good Morning, ";
-    } else if (hour >= 12 && hour < 17) {
-      greeting = "Good Afternoon, ";
-    } else {
-      greeting = "Good Evening, ";
-    }
+    // Translate Greetings
+    String greeting = hour < 12
+        ? "good_morning".tr
+        : (hour < 17 ? "good_afternoon".tr : "good_evening".tr);
 
     return Obx(() {
       final user = appController.firestoreUser.value;
       final name = user?.name ?? "User";
       final imageStr = user?.profileImage ?? "";
-
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -100,39 +241,17 @@ class _HomepagescreenState extends State<Homepagescreen> {
               ],
             ),
           ),
-
           GestureDetector(
             onTap: widget.onGoSetting,
-            child: Stack(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      width: 2,
-                      color: AppColors.primary(isDark),
-                    ),
-                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-                  ),
-                  child: ClipOval(child: _buildProfileImage(imageStr)),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(width: 1, color: Colors.red),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.edit, size: 10, color: Colors.red),
-                  ),
-                ),
-              ],
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(width: 2, color: AppColors.primary(isDark)),
+                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              ),
+              child: ClipOval(child: _buildProfileImage(imageStr)),
             ),
           ),
         ],
@@ -146,153 +265,216 @@ class _HomepagescreenState extends State<Homepagescreen> {
         child: Icon(Icons.person, size: 30, color: Colors.grey),
       );
     }
-    if (imageStr.startsWith('base64')) {
-      try {
-        final cleanBase64 = imageStr.split(',')[1];
+    try {
+      if (imageStr.startsWith('base64')) {
         return Image.memory(
-          base64Decode(cleanBase64),
+          base64Decode(imageStr.split(',')[1]),
           fit: BoxFit.cover,
           width: 50,
           height: 50,
-          errorBuilder: (_, __, ___) =>
-              const Center(child: Icon(Icons.error, size: 20)),
-        );
-      } catch (e) {
-        return const Center(
-          child: Icon(Icons.person, size: 30, color: Colors.grey),
         );
       }
-    }
-    if (imageStr.startsWith('http')) {
-      return Image.network(
-        imageStr,
-        fit: BoxFit.cover,
-        width: 50,
-        height: 50,
-        errorBuilder: (_, __, ___) => const Center(
-          child: Icon(Icons.person, size: 30, color: Colors.grey),
-        ),
-      );
-    }
+      if (imageStr.startsWith('http')) {
+        return Image.network(
+          imageStr,
+          fit: BoxFit.cover,
+          width: 50,
+          height: 50,
+        );
+      }
+      // ignore: empty_catches
+    } catch (e) {}
     return const Center(
       child: Icon(Icons.person, size: 30, color: Colors.grey),
     );
   }
 
   Widget _buildTabbar(bool isDark) {
-    final now = DateTime.now();
-    final days = List.generate(7, (i) => now.add(Duration(days: i - 3)));
+    if (currentMode == 1) {
+      // --- WEEKLY VIEW ---
+      return SizedBox(
+        height: 95,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: weekDays.length,
+          itemBuilder: (context, i) {
+            final dayShort = weekDays[i]; // Logic stays "Mon" (English)
+            final isSelected = dayShort == selectedRoutineDay;
 
-    return SizedBox(
-      height: 95,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: 7,
-        itemBuilder: (context, i) {
-          final day = days[i];
-          final isSelected =
-              day.year == selectedDay.year &&
-              day.month == selectedDay.month &&
-              day.day == selectedDay.day;
+            // Full day names for display
+            final fullNames = [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday",
+            ];
 
-          return GestureDetector(
-            onTap: () => setState(() => selectedDay = day),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 8),
-              child: Column(
-                children: [
-                  Text(
-                    [
-                      "Mon",
-                      "Tue",
-                      "Wed",
-                      "Thu",
-                      "Fri",
-                      "Sat",
-                      "Sun",
-                    ][day.weekday - 1],
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isSelected ? Colors.red : AppColors.text(isDark),
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.w400,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? Colors.red
-                          : AppColors.softcontainer(isDark),
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      day.day.toString(),
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedRoutineDay = dayShort;
+                  fullRoutineDayName = fullNames[i];
+                });
+                widget.onModeChanged(1, selectedRoutineDay);
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                child: Column(
+                  children: [
+                    // Translated Full Name (Monday -> ថ្ងៃច័ន្ទ)
+                    Text(
+                      fullNames[i].tr,
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.white : Colors.red.shade300,
+                        fontSize: 12,
+                        color: isSelected
+                            ? Colors.red
+                            : AppColors.text(isDark).withOpacity(0.5),
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.w400,
                       ),
                     ),
-                  ),
-                  if (day.day == now.day &&
-                      day.month == now.month &&
-                      day.year == now.year)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 4),
+                    const SizedBox(height: 6),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Colors.red
+                            : AppColors.softcontainer(isDark),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      // Translated Short Name (Mon -> ច័ន្ទ) inside circle
                       child: Text(
-                        "Today",
+                        dayShort.tr,
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.red,
+                          fontSize: 11, // Smaller for Khmer
                           fontWeight: FontWeight.bold,
+                          color: isSelected
+                              ? Colors.white
+                              : Colors.red.shade300,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } else {
+      // --- CALENDAR STRIP VIEW ---
+      final now = DateTime.now();
+      final days = List.generate(7, (i) => now.add(Duration(days: i - 3)));
+      return SizedBox(
+        height: 95,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: 7,
+          itemBuilder: (context, i) {
+            final day = days[i];
+            final isSelected = _isSameDay(day, selectedDay);
+            // Format "Mon", "Tue"
+            String dayShortRaw = DateFormat('E').format(day);
+
+            return GestureDetector(
+              onTap: () {
+                setState(() => selectedDay = day);
+                widget.onDateSelected(day);
+                widget.onModeChanged(0, day.toIso8601String());
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                child: Column(
+                  children: [
+                    // Translate "Mon" -> "ច័ន្ទ"
+                    Text(
+                      dayShortRaw.tr,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isSelected ? Colors.red : AppColors.text(isDark),
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Colors.red
+                            : AppColors.softcontainer(isDark),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        day.day.toString(),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected
+                              ? Colors.white
+                              : Colors.red.shade300,
                         ),
                       ),
                     ),
-                ],
+                    if (_isSameDay(day, now))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          "today".tr, // Translated "Today"
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      ),
-    );
+            );
+          },
+        ),
+      );
+    }
   }
 
-  // ==========================================
-  //  MODIFIED TASK LIST (SORT: CHECKED + TIME)
-  // ==========================================
   Widget _buildTaskList(bool isDark) {
     return Obx(() {
-      final selectedDateStr =
-          "${_monthToStr(selectedDay.month)} ${selectedDay.day}, ${selectedDay.year}";
+      List<TaskModel> tasks;
+      if (currentMode == 2) {
+        tasks = taskController.dayTasks;
+      } else if (currentMode == 1) {
+        tasks = taskController.weekTasks
+            .where((task) => task.date == selectedRoutineDay)
+            .toList();
+      } else {
+        final selectedDateStr = DateFormat('MMM d, yyyy').format(selectedDay);
+        tasks = taskController.getTasksByDate(selectedDateStr);
+      }
 
-      // 1. GET TASKS
-      final tasks = taskController.getTasksByDate(selectedDateStr);
-
-      // 2. SORT TASKS
       tasks.sort((a, b) {
-        // A. Primary Sort: Checked Status (Unchecked first, Checked last)
-        if (a.checked != b.checked) {
-          return a.checked ? 1 : -1;
-        }
-
-        // B. Secondary Sort: Time (AM to PM)
-        // Parse time string (e.g. "10:30 AM") to compare
+        if (a.checked != b.checked) return a.checked ? 1 : -1;
         try {
-          final dateA = DateFormat("h:mm a").parse(a.time);
-          final dateB = DateFormat("h:mm a").parse(b.time);
-          return dateA.compareTo(dateB);
-        } catch (e) {
-          return 0; // If time format is invalid, keep original order
+          return DateFormat(
+            "h:mm a",
+          ).parse(a.time).compareTo(DateFormat("h:mm a").parse(b.time));
+        } catch (_) {
+          return 0;
         }
       });
 
-      // 3. CHECK IF EMPTY
       if (tasks.isEmpty) {
         return Center(
           child: Column(
@@ -302,11 +484,23 @@ class _HomepagescreenState extends State<Homepagescreen> {
                 "assets/images/communication.png",
                 width: 150,
                 height: 150,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.task,
+                  size: 100,
+                  color: Colors.grey.withOpacity(0.3),
+                ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                "No tasks for today!",
-                style: TextStyle(
+              // Translated Empty States
+              Text(
+                currentMode == 2
+                    ? "no_daily_routines".tr
+                    : (currentMode == 1
+                          ? "no_routine_day".trParams({
+                              'day': fullRoutineDayName.tr,
+                            })
+                          : "no_tasks".tr),
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.grey,
@@ -317,7 +511,6 @@ class _HomepagescreenState extends State<Homepagescreen> {
         );
       }
 
-      // 4. FILTER (Search)
       final filteredTasks = tasks
           .where(
             (t) => t.text.toLowerCase().contains(searchQuery.toLowerCase()),
@@ -330,7 +523,7 @@ class _HomepagescreenState extends State<Homepagescreen> {
             style: TextStyle(color: AppColors.text(isDark)),
             onChanged: (value) => setState(() => searchQuery = value),
             decoration: InputDecoration(
-              hintText: "Search...",
+              hintText: "search".tr, // Translated
               hintStyle: TextStyle(
                 color: AppColors.text(isDark).withOpacity(0.4),
               ),
@@ -358,7 +551,7 @@ class _HomepagescreenState extends State<Homepagescreen> {
             child: filteredTasks.isEmpty
                 ? Center(
                     child: Text(
-                      "No result found",
+                      "no_result".tr, // Translated
                       style: TextStyle(
                         color: AppColors.text(isDark).withOpacity(0.5),
                         fontSize: 16,
@@ -367,11 +560,10 @@ class _HomepagescreenState extends State<Homepagescreen> {
                   )
                 : SingleChildScrollView(
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: 40),
+                      padding: const EdgeInsets.only(bottom: 80),
                       child: Column(
                         children: List.generate(filteredTasks.length, (index) {
-                          final task = filteredTasks[index];
-                          return _buildTaskCard(task, isDark);
+                          return _buildTaskCard(filteredTasks[index], isDark);
                         }),
                       ),
                     ),
@@ -384,8 +576,9 @@ class _HomepagescreenState extends State<Homepagescreen> {
 
   Widget _buildTaskCard(TaskModel task, bool isDark) {
     bool isTaskInPast = false;
-
-    if (task.taskTimestamp != null && task.taskTimestamp!.isNotEmpty) {
+    if (currentMode == 0 &&
+        task.taskTimestamp != null &&
+        task.taskTimestamp!.isNotEmpty) {
       DateTime? taskDateTime = DateTime.tryParse(task.taskTimestamp!);
       if (taskDateTime != null && taskDateTime.isBefore(DateTime.now())) {
         isTaskInPast = true;
@@ -416,7 +609,8 @@ class _HomepagescreenState extends State<Homepagescreen> {
                 children: [
                   if (!isTaskInPast) ...[
                     GestureDetector(
-                      onTap: () => taskController.addReminder(task),
+                      onTap: () =>
+                          taskController.addReminder(task, mode: currentMode),
                       child: Icon(
                         task.reminder ? Icons.alarm_on : Icons.alarm_add,
                         size: 20,
@@ -431,7 +625,11 @@ class _HomepagescreenState extends State<Homepagescreen> {
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => TaskHomeScreen(task: task),
+                        builder: (context) => TaskHomeScreen(
+                          task: task,
+                          currentMode: currentMode,
+                          routineDayName: selectedRoutineDay,
+                        ),
                       ),
                     ),
                     child: Icon(
@@ -448,7 +646,19 @@ class _HomepagescreenState extends State<Homepagescreen> {
           Row(
             children: [
               GestureDetector(
-                onTap: () => taskController.toggleTaskChecked(task),
+                onTap: () {
+                  if (currentMode == 2) {
+                    taskController.updateDayTask(
+                      task.copyWith(checked: !task.checked),
+                    );
+                  } else if (currentMode == 1) {
+                    taskController.updateWeekTask(
+                      task.copyWith(checked: !task.checked),
+                    );
+                  } else {
+                    taskController.toggleTaskChecked(task);
+                  }
+                },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   width: 22,
@@ -467,22 +677,28 @@ class _HomepagescreenState extends State<Homepagescreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.text,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppColors.text(isDark),
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  task.text,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppColors.text(isDark),
+                    decoration: task.checked
+                        ? TextDecoration.lineThrough
+                        : null,
+                  ),
                 ),
               ),
               GestureDetector(
                 onTap: () {
-                  if (task.id.isNotEmpty) taskController.deleteTask(task.id);
+                  if (task.id.isNotEmpty) {
+                    if (currentMode == 2) {
+                      taskController.deleteDayTask(task.id);
+                    } else if (currentMode == 1) {
+                      taskController.deleteWeekTask(task.id);
+                    } else {
+                      taskController.deleteTask(task.id);
+                    }
+                  }
                 },
                 child: Icon(Icons.delete, size: 20, color: Colors.red.shade500),
               ),
@@ -491,23 +707,5 @@ class _HomepagescreenState extends State<Homepagescreen> {
         ],
       ),
     );
-  }
-
-  String _monthToStr(int month) {
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return months[month - 1];
   }
 }

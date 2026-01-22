@@ -9,8 +9,16 @@ import 'package:to_do_list_app/model/task_model.dart';
 class TaskHomeScreen extends StatefulWidget {
   final TaskModel? task;
   final DateTime? initialDate;
+  final int currentMode; // 0=Cal, 1=Week, 2=Day
+  final String? routineDayName;
 
-  const TaskHomeScreen({super.key, this.task, this.initialDate});
+  const TaskHomeScreen({
+    super.key,
+    this.task,
+    this.initialDate,
+    this.currentMode = 0,
+    this.routineDayName,
+  });
 
   @override
   State<TaskHomeScreen> createState() => _TaskHomeScreenState();
@@ -46,7 +54,7 @@ class _TaskHomeScreenState extends State<TaskHomeScreen> {
           data: Theme.of(context).copyWith(
             textSelectionTheme: TextSelectionThemeData(
               cursorColor: AppColors.text(dark),
-              selectionColor: AppColors.text(dark),
+              selectionColor: AppColors.text(dark).withValues(alpha: 0.2),
               selectionHandleColor: AppColors.text(dark),
             ),
             colorScheme: isDark
@@ -104,54 +112,115 @@ class _TaskHomeScreenState extends State<TaskHomeScreen> {
   void saveTask() {
     if (!formKey.currentState!.validate()) return;
 
-    DateTime dateBase;
+    String finalDateString;
+    String safeIsoTimestamp = "";
 
-    if (widget.task != null) {
-      try {
-        dateBase = DateFormat('MMM d, yyyy').parse(widget.task!.date);
-      } catch (e) {
-        dateBase = DateTime.now();
+    if (widget.currentMode == 2) {
+      // DAILY
+      finalDateString = "Daily";
+      safeIsoTimestamp = DateTime.now().toIso8601String();
+    } else if (widget.currentMode == 1) {
+      // WEEK ROUTINE
+      if (widget.task != null) {
+        finalDateString = widget.task!.date;
+      } else {
+        // Use English day name for Week Logic consistency if possible,
+        // or ensure week routine logic matches translated days.
+        // For safety, defaulting to Standard English E (Mon, Tue) for logic storage is safer
+        // unless you refactor the whole DB to use numbers.
+        // Assuming routineDayName passed in is the stored value (e.g. "Mon").
+        finalDateString =
+            widget.routineDayName ?? DateFormat('E').format(DateTime.now());
       }
+      safeIsoTimestamp = DateTime.now().toIso8601String();
     } else {
-      dateBase = widget.initialDate ?? DateTime.now();
+      // REGULAR TASK
+      DateTime dateBase;
+      if (widget.task != null) {
+        try {
+          dateBase = DateFormat('MMM d, yyyy').parse(widget.task!.date);
+        } catch (e) {
+          dateBase = DateTime.now();
+        }
+      } else {
+        dateBase = widget.initialDate ?? DateTime.now();
+      }
+      finalDateString = DateFormat('MMM d, yyyy').format(dateBase);
+
+      TimeOfDay finalTime;
+      if (selectedTime != null) {
+        finalTime = selectedTime!;
+      } else if (widget.task != null) {
+        try {
+          DateTime parsedTime = DateFormat("h:mm a").parse(widget.task!.time);
+          finalTime = TimeOfDay.fromDateTime(parsedTime);
+        } catch (e) {
+          finalTime = TimeOfDay.now();
+        }
+      } else {
+        finalTime = TimeOfDay.now();
+      }
+
+      DateTime finalDateTime = DateTime(
+        dateBase.year,
+        dateBase.month,
+        dateBase.day,
+        finalTime.hour,
+        finalTime.minute,
+      );
+      safeIsoTimestamp = finalDateTime.toIso8601String();
     }
 
-    TimeOfDay finalTime = selectedTime ?? TimeOfDay.now();
-    DateTime finalDateTime = DateTime(
-      dateBase.year,
-      dateBase.month,
-      dateBase.day,
-      finalTime.hour,
-      finalTime.minute,
-    );
-    String safeIsoTimestamp = finalDateTime.toIso8601String();
-    String dateString = DateFormat('MMM d, yyyy').format(dateBase);
-
     if (widget.task != null) {
+      // UPDATE
+      String? updatedReminderTime = widget.task!.reminderTime;
+      if (widget.task!.reminder) {
+        if (widget.currentMode == 0) {
+          updatedReminderTime = safeIsoTimestamp;
+        } else {
+          updatedReminderTime = widget.task!.time;
+        }
+      }
+
       final updatedTask = TaskModel(
         id: widget.task!.id,
         text: titleController.text,
         time: timeController.text,
-        date: dateString,
+        date: finalDateString,
         checked: widget.task!.checked,
         reminder: widget.task!.reminder,
-        reminderTime: widget.task!.reminderTime,
+        reminderTime: updatedReminderTime,
         taskTimestamp: safeIsoTimestamp,
       );
-      controller.updateTask(updatedTask);
+
+      if (widget.currentMode == 2) {
+        controller.updateDayTask(updatedTask);
+      } else if (widget.currentMode == 1) {
+        controller.updateWeekTask(updatedTask);
+      } else {
+        controller.updateTask(updatedTask);
+      }
     } else {
+      // ADD NEW
       final newTask = TaskModel(
         id: "",
         text: titleController.text,
         time: timeController.text,
-        date: dateString,
+        date: finalDateString,
         checked: false,
         reminder: false,
         taskTimestamp: safeIsoTimestamp,
       );
-      controller.addTask(newTask);
-      Navigator.pop(context);
+
+      if (widget.currentMode == 2) {
+        controller.addDayTask(newTask);
+      } else if (widget.currentMode == 1) {
+        controller.addWeekTask(newTask);
+      } else {
+        controller.addTask(newTask);
+      }
     }
+    Navigator.pop(context);
 
     titleController.clear();
     timeController.clear();
@@ -186,7 +255,10 @@ class _TaskHomeScreenState extends State<TaskHomeScreen> {
               ),
             ),
             title: Text(
-              widget.task != null ? "Edit Task" : "Add Task",
+              widget.task != null
+                  ? 'edit_task'
+                        .tr // Translated
+                  : 'add_task'.tr, // Translated
               style: const TextStyle(color: Colors.white),
             ),
             leading: GestureDetector(
@@ -208,65 +280,70 @@ class _TaskHomeScreenState extends State<TaskHomeScreen> {
                     key: formKey,
                     child: Column(
                       children: [
-                        TextFormField(
-                          cursorColor: AppColors.text(dark),
-                          controller: titleController,
-                          style: TextStyle(color: AppColors.text(dark)),
-
-                          // 1. THIS ADDS THE NUMBER COUNT (e.g. 0/50)
-                          maxLength: 50,
-
-                          validator: (v) {
-                            if (v!.isEmpty) return "Enter task";
-                            return null;
-                          },
-
-                          decoration: InputDecoration(
-                            labelText: "Activity",
-                            labelStyle: TextStyle(color: AppColors.text(dark)),
-
-                            // 2. STYLE THE COUNTER TO MATCH YOUR THEME
-                            counterStyle: TextStyle(
-                              color: AppColors.text(dark).withOpacity(0.6),
-                              fontSize: 12,
+                        Theme(
+                          data: Theme.of(context).copyWith(
+                            textSelectionTheme: TextSelectionThemeData(
+                              cursorColor: AppColors.text(dark),
+                              selectionHandleColor: AppColors.text(dark),
+                              selectionColor: AppColors.text(
+                                dark,
+                              ).withValues(alpha: 0.2),
                             ),
-
-                            enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                width: 1,
+                          ),
+                          child: TextFormField(
+                            cursorColor: AppColors.text(dark),
+                            controller: titleController,
+                            style: TextStyle(color: AppColors.text(dark)),
+                            maxLength: 50,
+                            validator: (v) {
+                              if (v!.isEmpty) {
+                                return "enter_task".tr; // Translated
+                              }
+                              return null;
+                            },
+                            decoration: InputDecoration(
+                              labelText: "activity".tr, // Translated
+                              labelStyle: TextStyle(
                                 color: AppColors.text(dark),
                               ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: const BorderSide(
-                                color: Colors.red,
-                                width: 1.5,
+                              counterStyle: TextStyle(
+                                color: AppColors.text(dark).withOpacity(0.6),
+                                fontSize: 12,
                               ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            prefixIcon: Icon(
-                              Icons.task,
-                              color: AppColors.text(dark),
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  width: 1,
+                                  color: AppColors.text(dark),
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: const BorderSide(
+                                  color: Colors.red,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              prefixIcon: Icon(
+                                Icons.task,
+                                color: AppColors.text(dark),
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
-
-                        // NOTE: maxLength automatically adds some padding.
-                        // I reduced the SizedBox slightly to balance the layout.
                         const SizedBox(height: 5),
-
                         TextFormField(
                           controller: timeController,
                           readOnly: true,
                           onTap: () => pickTime(dark),
                           style: TextStyle(color: AppColors.text(dark)),
-                          validator: (v) => v!.isEmpty ? "Pick time" : null,
+                          validator: (v) =>
+                              v!.isEmpty ? "pick_time".tr : null, // Translated
                           decoration: InputDecoration(
-                            labelText: "Time",
+                            labelText: "time".tr, // Translated
                             labelStyle: TextStyle(color: AppColors.text(dark)),
                             enabledBorder: OutlineInputBorder(
                               borderSide: BorderSide(
@@ -304,7 +381,10 @@ class _TaskHomeScreenState extends State<TaskHomeScreen> {
                               ),
                             ),
                             child: Text(
-                              widget.task != null ? "UPDATE TASK" : "ADD TASK",
+                              widget.task != null
+                                  ? 'update_task'
+                                        .tr // Translated
+                                  : 'add_task_btn'.tr, // Translated
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,

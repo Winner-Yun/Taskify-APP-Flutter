@@ -187,38 +187,47 @@ class _LoginScreenState extends State<LoginScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        TextField(
-          controller: controller,
-          onChanged: onChanged,
-          style: const TextStyle(color: Colors.black, fontSize: 16),
-          obscureText: isPassword && !isCheck,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: Colors.grey.shade600),
-            errorText: errorText,
-            errorStyle: const TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.w600,
+        Theme(
+          data: Theme.of(context).copyWith(
+            textSelectionTheme: TextSelectionThemeData(
+              cursorColor: Colors.black,
+              selectionHandleColor: Colors.black,
+              selectionColor: Colors.black.withValues(alpha: 0.2),
             ),
-            suffixIcon: icon != null
-                ? GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        isCheck = !isCheck;
-                      });
-                    },
-                    child: Icon(
-                      isCheck ? Icons.visibility : Icons.visibility_off,
-                      size: 20,
-                      color: iconColor,
-                    ),
-                  )
-                : null,
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey),
-            ),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.red, width: 2),
+          ),
+          child: TextField(
+            controller: controller,
+            onChanged: onChanged,
+            style: const TextStyle(color: Colors.black, fontSize: 16),
+            obscureText: isPassword && !isCheck,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(color: Colors.grey.shade600),
+              errorText: errorText,
+              errorStyle: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+              suffixIcon: icon != null
+                  ? GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          isCheck = !isCheck;
+                        });
+                      },
+                      child: Icon(
+                        isCheck ? Icons.visibility : Icons.visibility_off,
+                        size: 20,
+                        color: iconColor,
+                      ),
+                    )
+                  : null,
+              enabledBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.grey),
+              ),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.red, width: 2),
+              ),
             ),
           ),
         ),

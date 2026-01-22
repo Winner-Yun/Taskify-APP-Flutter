@@ -8,7 +8,7 @@ class AppTheme {
     primaryColor: AppColors.primary(false),
     scaffoldBackgroundColor: AppColors.background(false),
     cardColor: AppColors.card(false),
-    textTheme: GoogleFonts.poppinsTextTheme().apply(
+    textTheme: GoogleFonts.notoSansKhmerTextTheme().apply(
       bodyColor: AppColors.text(false),
       displayColor: AppColors.text(false),
     ),
@@ -19,7 +19,7 @@ class AppTheme {
     primaryColor: AppColors.primary(true),
     scaffoldBackgroundColor: AppColors.background(true),
     cardColor: AppColors.card(true),
-    textTheme: GoogleFonts.poppinsTextTheme().apply(
+    textTheme: GoogleFonts.notoSansKhmerTextTheme().apply(
       bodyColor: AppColors.text(true),
       displayColor: AppColors.text(true),
     ),

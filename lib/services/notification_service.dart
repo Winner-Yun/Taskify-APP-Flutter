@@ -14,22 +14,15 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
-    // 1. Initialize Timezone Database
     tz.initializeTimeZones();
-
-    // THE FIX: We removed the crashing 'flutter_timezone' package.
-    // We just set the location to local. In 99% of cases, this works fine.
     try {
       tz.setLocalLocation(tz.local);
     } catch (e) {
       debugPrint("Timezone error: $e");
     }
 
-    // 2. Setup Icons
     const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings(
-          '@drawable/task_icon',
-        ); // Points to your new file
+        AndroidInitializationSettings('@drawable/task_icon');
 
     const DarwinInitializationSettings initializationSettingsDarwin =
         DarwinInitializationSettings(
@@ -51,12 +44,11 @@ class NotificationService {
       },
     );
 
-    // 3. Create Channel
     if (Platform.isAndroid) {
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
         'task_channel_popup_final',
         'Task Reminders',
-        importance: Importance.max, // Key for popping up
+        importance: Importance.max,
         playSound: true,
       );
 
@@ -85,13 +77,26 @@ class NotificationService {
     required String title,
     required String body,
     required DateTime scheduledTime,
+    int repeatMode = 0, // 0=None, 1=Weekly, 2=Daily, 3=Special(Annual)
   }) async {
     try {
+      DateTimeComponents? matchComponent;
+
+      if (repeatMode == 1) {
+        matchComponent = DateTimeComponents.dayOfWeekAndTime;
+      } else if (repeatMode == 2) {
+        matchComponent = DateTimeComponents.time;
+      } else {
+        // Mode 0 (Calendar) and Mode 3 (Special/Annual)
+        // are scheduled as one-time specific dates.
+        // For Annual, the controller calculates the exact date for this/next year.
+        matchComponent = DateTimeComponents.dateAndTime;
+      }
+
       await flutterLocalNotificationsPlugin.zonedSchedule(
         id,
         title,
         body,
-        // Convert simple DateTime to Timezone-aware DateTime
         tz.TZDateTime.from(scheduledTime, tz.local),
         const NotificationDetails(
           android: AndroidNotificationDetails(
@@ -111,9 +116,9 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.dateAndTime,
+        matchDateTimeComponents: matchComponent,
       );
-      debugPrint("SUCCESS: Scheduled for $scheduledTime");
+      debugPrint("SUCCESS: Scheduled for $scheduledTime (Mode: $repeatMode)");
     } catch (e) {
       debugPrint("ERROR: $e");
     }
@@ -121,5 +126,10 @@ class NotificationService {
 
   Future<void> cancelNotification(int id) async {
     await flutterLocalNotificationsPlugin.cancel(id);
+  }
+
+  Future<void> cancelAllNotifications() async {
+    await flutterLocalNotificationsPlugin.cancelAll();
+    debugPrint("All notifications cancelled");
   }
 }

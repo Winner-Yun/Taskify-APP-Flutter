@@ -1,12 +1,12 @@
 class TaskModel {
-  final String id;
-  final String date;
-  final String time;
-  final String text;
-  final bool checked;
-  final bool reminder;
-  final String? reminderTime;
-  final String? taskTimestamp; // <--- This exists, but was ignored below
+  String id;
+  String date;
+  String time;
+  String text;
+  bool checked;
+  bool reminder;
+  String? reminderTime;
+  String? taskTimestamp;
 
   TaskModel({
     required this.id,
@@ -27,7 +27,7 @@ class TaskModel {
       'checked': checked,
       'reminder': reminder,
       'reminderTime': reminderTime,
-      'taskTimestamp': taskTimestamp, // <--- ADD THIS LINE
+      'taskTimestamp': taskTimestamp,
     };
   }
 
@@ -40,7 +40,30 @@ class TaskModel {
       checked: map['checked'] ?? false,
       reminder: map['reminder'] ?? false,
       reminderTime: map['reminderTime'],
-      taskTimestamp: map['taskTimestamp'], // <--- ADD THIS LINE
+      taskTimestamp: map['taskTimestamp'],
+    );
+  }
+
+  // Add copyWith for easier updates
+  TaskModel copyWith({
+    String? id,
+    String? date,
+    String? time,
+    String? text,
+    bool? checked,
+    bool? reminder,
+    String? reminderTime,
+    String? taskTimestamp,
+  }) {
+    return TaskModel(
+      id: id ?? this.id,
+      date: date ?? this.date,
+      time: time ?? this.time,
+      text: text ?? this.text,
+      checked: checked ?? this.checked,
+      reminder: reminder ?? this.reminder,
+      reminderTime: reminderTime ?? this.reminderTime,
+      taskTimestamp: taskTimestamp ?? this.taskTimestamp,
     );
   }
 }

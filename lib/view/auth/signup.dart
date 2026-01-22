@@ -273,38 +273,48 @@ class _SignupScreenState extends State<SignupScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        TextField(
-          controller: controller,
-          onChanged: onChanged,
-          obscureText: isPassword && !ischeck ? true : false,
-          style: const TextStyle(color: Colors.black, fontSize: 16),
-          decoration: InputDecoration(
-            hintText: hint,
-            errorStyle: const TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.w600,
+        Theme(
+          data: Theme.of(context).copyWith(
+            textSelectionTheme: TextSelectionThemeData(
+              cursorColor: Colors.black,
+              selectionHandleColor: Colors.black,
+              selectionColor: Colors.black.withValues(alpha: 0.2),
             ),
-            errorText: errorText,
-            hintStyle: TextStyle(color: Colors.grey.shade600),
-            suffixIcon: icon != null
-                ? GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        ischeck = !ischeck;
-                      });
-                    },
-                    child: Icon(
-                      ischeck ? Icons.visibility : Icons.visibility_off,
-                      size: 20,
-                      color: iconColor,
-                    ),
-                  )
-                : null,
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey),
-            ),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.red, width: 2),
+          ),
+
+          child: TextField(
+            controller: controller,
+            onChanged: onChanged,
+            obscureText: isPassword && !ischeck ? true : false,
+            style: const TextStyle(color: Colors.black, fontSize: 16),
+            decoration: InputDecoration(
+              hintText: hint,
+              errorStyle: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+              errorText: errorText,
+              hintStyle: TextStyle(color: Colors.grey.shade600),
+              suffixIcon: icon != null
+                  ? GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          ischeck = !ischeck;
+                        });
+                      },
+                      child: Icon(
+                        ischeck ? Icons.visibility : Icons.visibility_off,
+                        size: 20,
+                        color: iconColor,
+                      ),
+                    )
+                  : null,
+              enabledBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.grey),
+              ),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.red, width: 2),
+              ),
             ),
           ),
         ),

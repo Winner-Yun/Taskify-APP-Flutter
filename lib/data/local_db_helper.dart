@@ -18,21 +18,38 @@ class LocalDbHelper {
     String path = join(await getDatabasesPath(), 'app_settings.db');
     return await openDatabase(
       path,
-      version: 1,
+      // 1. INCREASE VERSION TO 3
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE settings(
             id INTEGER PRIMARY KEY,
             isDarkMode INTEGER,
-            lastNameChange INTEGER
+            lastNameChange INTEGER,
+            isRoutineMode INTEGER DEFAULT 0,
+            languageCode TEXT DEFAULT 'en' 
           )
         ''');
-        // Insert default row
         await db.insert('settings', {
           'id': 1,
-          'isDarkMode': 0, // 0 = false, 1 = true
+          'isDarkMode': 0,
           'lastNameChange': 0,
+          'isRoutineMode': 0,
+          'languageCode': 'en', // Default English
         });
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE settings ADD COLUMN isRoutineMode INTEGER DEFAULT 0',
+          );
+        }
+        // 2. HANDLE UPGRADE TO VERSION 3
+        if (oldVersion < 3) {
+          await db.execute(
+            "ALTER TABLE settings ADD COLUMN languageCode TEXT DEFAULT 'en'",
+          );
+        }
       },
     );
   }
@@ -56,6 +73,25 @@ class LocalDbHelper {
     return 0;
   }
 
+  Future<int> getRoutineMode() async {
+    final db = await database;
+    final res = await db.query('settings', where: 'id = ?', whereArgs: [1]);
+    if (res.isNotEmpty) {
+      return res.first['isRoutineMode'] as int;
+    }
+    return 0;
+  }
+
+  // 3. NEW GETTER FOR LANGUAGE
+  Future<String> getLanguage() async {
+    final db = await database;
+    final res = await db.query('settings', where: 'id = ?', whereArgs: [1]);
+    if (res.isNotEmpty && res.first['languageCode'] != null) {
+      return res.first['languageCode'] as String;
+    }
+    return 'en'; // Default
+  }
+
   // ================= SETTERS =================
   Future<void> setDarkMode(bool value) async {
     final db = await database;
@@ -72,6 +108,27 @@ class LocalDbHelper {
     await db.update(
       'settings',
       {'lastNameChange': timestamp},
+      where: 'id = ?',
+      whereArgs: [1],
+    );
+  }
+
+  Future<void> setRoutineMode(int value) async {
+    final db = await database;
+    await db.update(
+      'settings',
+      {'isRoutineMode': value},
+      where: 'id = ?',
+      whereArgs: [1],
+    );
+  }
+
+  // 4. NEW SETTER FOR LANGUAGE
+  Future<void> setLanguage(String langCode) async {
+    final db = await database;
+    await db.update(
+      'settings',
+      {'languageCode': langCode},
       where: 'id = ?',
       whereArgs: [1],
     );

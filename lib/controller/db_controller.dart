@@ -1,12 +1,51 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:to_do_list_app/model/notification_model.dart';
 import 'package:to_do_list_app/model/task_model.dart';
 import 'package:to_do_list_app/model/user_model.dart';
 
 class DbController extends GetxController {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // --- HELPER: RESET CHECKBOX FOR DAILY & WEEKLY ---
+  TaskModel _checkAndResetTask(
+    Map<String, dynamic> data,
+    String docId,
+    DocumentReference ref,
+  ) {
+    if (data['checked'] == true) {
+      String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      String? lastChecked = data['lastCheckedDate'];
+      String taskDate = data['date'] ?? '';
+
+      bool shouldReset = false;
+
+      // 1. Daily Reset
+      if (taskDate == 'Daily') {
+        if (lastChecked != todayStr) {
+          shouldReset = true;
+        }
+      }
+      // 2. Weekly Reset
+      else {
+        String todayDayName = DateFormat('EEEE').format(DateTime.now());
+
+        if (taskDate == todayDayName) {
+          if (lastChecked != todayStr) {
+            shouldReset = true;
+          }
+        }
+      }
+
+      if (shouldReset) {
+        data['checked'] = false;
+        ref.update({'checked': false});
+      }
+    }
+    return TaskModel.fromMap(data, docId);
+  }
 
   // === USER ===
   Future<void> createUserInFirestore(UserModel user, String uid) async {
@@ -25,11 +64,7 @@ class DbController extends GetxController {
     });
   }
 
-  Future<void> updateUserProfile(String uid, Map<String, dynamic> data) async {
-    await _db.collection('users').doc(uid).update(data);
-  }
-
-  // === TASKS ===
+  // === TASKS (MAIN) ===
   Stream<List<TaskModel>> getUserTasks(String uid) {
     return _db
         .collection('users')
@@ -51,7 +86,6 @@ class DbController extends GetxController {
         .add(task.toMap());
   }
 
-  // Updated to handle both "reminder" status and "reminderTime" string
   Future<void> updateTaskStatus(
     String uid,
     String taskId,
@@ -61,12 +95,16 @@ class DbController extends GetxController {
   }) async {
     Map<String, dynamic> data = {'checked': isChecked};
 
+    if (isChecked) {
+      data['lastCheckedDate'] = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    }
+
     if (reminder != null) data['reminder'] = reminder;
 
-    // Consistent Field Name: 'reminderTime'
-    if (reminderTime != null) {
+    if (reminderTime != null && reminderTime.isNotEmpty) {
       data['reminderTime'] = reminderTime;
-    } else if (reminder == false) {
+    } else if (reminder == false ||
+        (reminderTime != null && reminderTime.isEmpty)) {
       data['reminderTime'] = FieldValue.delete();
     }
 
@@ -96,16 +134,290 @@ class DbController extends GetxController {
         .delete();
   }
 
-  // === NOTIFICATIONS ===
-  Future<void> addNotification(
+  // === WEEK ROUTINE (With Reset) ===
+  Stream<List<TaskModel>> getWeekRoutineTasks(String uid) {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('week_routine')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(
+                (doc) => _checkAndResetTask(doc.data(), doc.id, doc.reference),
+              )
+              .toList(),
+        );
+  }
+
+  Future<String> addWeekTask(String uid, TaskModel task) async {
+    DocumentReference docRef = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('week_routine')
+        .add(task.toMap());
+    return docRef.id;
+  }
+
+  Future<void> updateWeekTask(String uid, TaskModel task) async {
+    Map<String, dynamic> data = task.toMap();
+    if (task.checked) {
+      data['lastCheckedDate'] = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    }
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('week_routine')
+        .doc(task.id)
+        .update(data);
+  }
+
+  Future<void> deleteWeekTask(String uid, String taskId) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('week_routine')
+        .doc(taskId)
+        .delete();
+  }
+
+  Future<void> updateWeekTaskStatus(
     String uid,
-    NotificationModel notification,
+    String taskId, {
+    bool? isChecked,
+    bool? reminder,
+    String? reminderTime,
+  }) async {
+    Map<String, dynamic> data = {};
+    if (isChecked != null) {
+      data['checked'] = isChecked;
+      if (isChecked) {
+        data['lastCheckedDate'] = DateFormat(
+          'yyyy-MM-dd',
+        ).format(DateTime.now());
+      }
+    }
+    if (reminder != null) data['reminder'] = reminder;
+    if (reminderTime != null && reminderTime.isNotEmpty) {
+      data['reminderTime'] = reminderTime;
+    } else if (reminder == false ||
+        (reminderTime != null && reminderTime.isEmpty)) {
+      data['reminderTime'] = FieldValue.delete();
+    }
+
+    if (data.isNotEmpty) {
+      await _db
+          .collection('users')
+          .doc(uid)
+          .collection('week_routine')
+          .doc(taskId)
+          .update(data);
+    }
+  }
+
+  // === DAY ROUTINE (With Reset) ===
+  Stream<List<TaskModel>> getDayRoutineTasks(String uid) {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('day_routine')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(
+                (doc) => _checkAndResetTask(doc.data(), doc.id, doc.reference),
+              )
+              .toList(),
+        );
+  }
+
+  Future<String> addDayTask(String uid, TaskModel task) async {
+    DocumentReference docRef = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('day_routine')
+        .add(task.toMap());
+    return docRef.id;
+  }
+
+  Future<void> updateDayTask(String uid, TaskModel task) async {
+    Map<String, dynamic> data = task.toMap();
+    if (task.checked) {
+      data['lastCheckedDate'] = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    }
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('day_routine')
+        .doc(task.id)
+        .update(data);
+  }
+
+  Future<void> deleteDayTask(String uid, String taskId) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('day_routine')
+        .doc(taskId)
+        .delete();
+  }
+
+  Future<void> updateDayTaskStatus(
+    String uid,
+    String taskId, {
+    bool? isChecked,
+    bool? reminder,
+    String? reminderTime,
+  }) async {
+    Map<String, dynamic> data = {};
+    if (isChecked != null) {
+      data['checked'] = isChecked;
+      if (isChecked) {
+        data['lastCheckedDate'] = DateFormat(
+          'yyyy-MM-dd',
+        ).format(DateTime.now());
+      }
+    }
+    if (reminder != null) data['reminder'] = reminder;
+    if (reminderTime != null && reminderTime.isNotEmpty) {
+      data['reminderTime'] = reminderTime;
+    } else if (reminder == false ||
+        (reminderTime != null && reminderTime.isEmpty)) {
+      data['reminderTime'] = FieldValue.delete();
+    }
+    if (data.isNotEmpty) {
+      await _db
+          .collection('users')
+          .doc(uid)
+          .collection('day_routine')
+          .doc(taskId)
+          .update(data);
+    }
+  }
+
+  // === SPECIAL ROUTINE ===
+  Stream<List<TaskModel>> getSpecialRoutineTasks(String uid) {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('special_routine')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => TaskModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addSpecialTask(String uid, TaskModel task) async {
+    DocumentReference docRef = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('special_routine')
+        .add(task.toMap());
+    return docRef.id;
+  }
+
+  Future<void> updateSpecialTask(String uid, TaskModel task) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('special_routine')
+        .doc(task.id)
+        .update(task.toMap());
+  }
+
+  Future<void> deleteSpecialTask(String uid, String taskId) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('special_routine')
+        .doc(taskId)
+        .delete();
+  }
+
+  // === NOTIFICATIONS (UPSERT - UPDATED) ===
+
+  // Update existing or Add new (Upsert)
+  Future<void> upsertNotification(
+    String uid,
+    NotificationModel notification, {
+    bool? resetAlert,
+  }) async {
+    final query = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .where('taskId', isEqualTo: notification.taskId)
+        .get();
+
+    if (query.docs.isNotEmpty) {
+      // UPDATE EXISTING
+      var docRef = query.docs.first.reference;
+      Map<String, dynamic> updateData = {
+        'title': notification.title,
+        'message': notification.message,
+        'date': notification.date,
+      };
+
+      // If rescheduling (resetAlert=true), we reset isAlert to false
+      // AND we must ensure hiddenDate is correctly set or cleared.
+      if (resetAlert == true) {
+        updateData['isAlert'] = false;
+
+        // Check if the new model wants to hide the date
+        if (notification.hiddenDate != null) {
+          updateData['hiddenDate'] = notification.hiddenDate;
+        } else {
+          // If not hiding (future time on same day), we must DELETE any old hiddenDate
+          // to ensure the notification is tracked again.
+          updateData['hiddenDate'] = FieldValue.delete();
+        }
+      }
+
+      await docRef.update(updateData);
+    } else {
+      // CREATE NEW
+      notification.isAlert = false;
+      await _db
+          .collection('users')
+          .doc(uid)
+          .collection('notifications')
+          .add(notification.toMap());
+    }
+  }
+
+  Future<void> markNotificationAsAlerted(
+    String uid,
+    String notificationId,
   ) async {
     await _db
         .collection('users')
         .doc(uid)
         .collection('notifications')
-        .add(notification.toMap());
+        .doc(notificationId)
+        .update({'isAlert': true});
+  }
+
+  Future<void> updateUserProfile(String uid, Map<String, dynamic> data) async {
+    await _db.collection('users').doc(uid).update(data);
+  }
+
+  Future<void> resetNotificationForNextCycle(
+    String uid,
+    String notificationId,
+    String newDateStr,
+  ) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .doc(notificationId)
+        .update({
+          'isAlert': false, // Reset to pending
+          'date': newDateStr,
+          'hiddenDate': FieldValue.delete(),
+        });
   }
 
   Stream<List<NotificationModel>> getUserNotifications(String uid) {
@@ -113,13 +425,34 @@ class DbController extends GetxController {
         .collection('users')
         .doc(uid)
         .collection('notifications')
-        .orderBy('date', descending: true) // Sort by newest
+        .orderBy('date', descending: true)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
+        .map((snapshot) {
+          String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+          return snapshot.docs
+              .where((doc) {
+                final data = doc.data();
+                // If hiddenDate exists and matches today, we exclude it from the list
+                // This prevents NotificationController from "seeing" it and triggering false alert
+                if (data.containsKey('hiddenDate')) {
+                  return data['hiddenDate'] != todayStr;
+                }
+                return true;
+              })
               .map((doc) => NotificationModel.fromMap(doc.data(), doc.id))
-              .toList(),
-        );
+              .toList();
+        });
+  }
+
+  Future<void> hideNotification(String uid, String notificationId) async {
+    String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .doc(notificationId)
+        .update({'hiddenDate': todayStr});
   }
 
   Future<void> deleteNotification(String uid, String notificationId) async {
@@ -129,5 +462,22 @@ class DbController extends GetxController {
         .collection('notifications')
         .doc(notificationId)
         .delete();
+  }
+
+  Future<void> deleteNotificationByTaskId(String uid, String taskId) async {
+    try {
+      var snapshot = await _db
+          .collection('users')
+          .doc(uid)
+          .collection('notifications')
+          .where('taskId', isEqualTo: taskId)
+          .get();
+
+      for (var doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      debugPrint("Error deleting notification for task: $e");
+    }
   }
 }

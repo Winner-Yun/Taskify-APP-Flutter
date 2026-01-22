@@ -1,31 +1,40 @@
 class NotificationModel {
-  final String id;
-  final String title;
-  final String date;
-  final String message;
+  String id;
+  String taskId;
+  String title;
+  String message;
+  String date;
+  bool isAlert; // NEW: Controls visibility
+  String? hiddenDate;
 
   NotificationModel({
     required this.id,
+    this.taskId = '',
     required this.title,
-    required this.date,
     required this.message,
+    required this.date,
+    this.isAlert = false,
+    this.hiddenDate,
   });
 
-  // ✅ UNCOMMENTED & FIXED
-  Map<String, dynamic> toMap() {
-    return {
-      'title': title,
-      'date': date,
-      'message': message,
-    };
+  factory NotificationModel.fromMap(Map<String, dynamic> map, String id) {
+    return NotificationModel(
+      id: id,
+      taskId: map['taskId'] ?? '',
+      title: map['title'] ?? '',
+      message: map['message'] ?? '',
+      date: map['date'] ?? '',
+      hiddenDate: map['hiddenDate'],
+    );
   }
 
-  factory NotificationModel.fromMap(Map<String, dynamic> map, String docId) {
-    return NotificationModel(
-      id: docId,
-      title: map['title'] ?? '',
-      date: map['date'] ?? '',
-      message: map['message'] ?? '',
-    );
+  Map<String, dynamic> toMap() {
+    return {
+      'taskId': taskId,
+      'title': title,
+      'message': message,
+      'date': date,
+      'hiddenDate': hiddenDate,
+    };
   }
 }
