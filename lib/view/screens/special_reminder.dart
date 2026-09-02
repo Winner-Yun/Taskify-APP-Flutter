@@ -463,7 +463,7 @@ class _SpecialReminderScreenState extends State<SpecialReminderScreen> {
                           // 2. Format Display Time
                           String displayTime = selectedTime != null
                               ? selectedTime!.format(context)
-                              : "12:00 PM";
+                              : "12:00 AM";
 
                           // 3. Construct 0000 Timestamp for Annual Logic
                           String mm = m.toString().padLeft(2, '0');

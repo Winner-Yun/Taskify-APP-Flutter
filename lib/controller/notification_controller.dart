@@ -119,6 +119,7 @@ class NotificationController extends GetxController {
     if (uid == null) return;
 
     bool isRecurring =
+        notification.title.startsWith("Callender") ||
         notification.title.startsWith("Daily") ||
         notification.title.startsWith("Routine") ||
         notification.title.startsWith("Special");

@@ -108,7 +108,7 @@ class _HomepagescreenState extends State<Homepagescreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(10.0),
+      padding: const EdgeInsets.all(15.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

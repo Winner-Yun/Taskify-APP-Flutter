@@ -551,6 +551,7 @@ class TaskController extends GetxController {
     } else {
       dateStr = DateFormat("MMM d, yyyy").format(scheduledTime);
       msg = "Reminder set for $title at $dateStr $timeStr";
+      task = 'Callender Task';
     }
 
     NotificationModel notif = NotificationModel(

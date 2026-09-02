@@ -87,9 +87,6 @@ class NotificationService {
       } else if (repeatMode == 2) {
         matchComponent = DateTimeComponents.time;
       } else {
-        // Mode 0 (Calendar) and Mode 3 (Special/Annual)
-        // are scheduled as one-time specific dates.
-        // For Annual, the controller calculates the exact date for this/next year.
         matchComponent = DateTimeComponents.dateAndTime;
       }
 
