@@ -263,7 +263,7 @@ class _SpecialReminderScreenState extends State<SpecialReminderScreen> {
                         context: context,
                         initialTime:
                             selectedTime ??
-                            const TimeOfDay(hour: 12, minute: 0),
+                            const TimeOfDay(hour: 0, minute: 0),
                         builder: (context, child) {
                           return Theme(
                             data: Theme.of(context).copyWith(
@@ -469,7 +469,7 @@ class _SpecialReminderScreenState extends State<SpecialReminderScreen> {
                           String mm = m.toString().padLeft(2, '0');
                           String dd = d.toString().padLeft(2, '0');
 
-                          int h = selectedTime?.hour ?? 9;
+                          int h = selectedTime?.hour ?? 0;
                           int min = selectedTime?.minute ?? 0;
                           String hh = h.toString().padLeft(2, '0');
                           String minStr = min.toString().padLeft(2, '0');
