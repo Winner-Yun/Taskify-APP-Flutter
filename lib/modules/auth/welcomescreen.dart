@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:to_do_list_app/modules/auth/login.dart';
-import 'package:to_do_list_app/modules/auth/signup.dart';
+import 'package:get/get.dart';
+import 'package:to_do_list_app/data/controller/auth_controller.dart';
 
 class Welcomescreen extends StatefulWidget {
   const Welcomescreen({super.key});
@@ -10,6 +10,8 @@ class Welcomescreen extends StatefulWidget {
 }
 
 class _WelcomescreenState extends State<Welcomescreen> {
+  final AuthController authCtrl = Get.find<AuthController>();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,59 +52,57 @@ class _WelcomescreenState extends State<Welcomescreen> {
 
   Widget _buildBodyButton() {
     return Column(
-      spacing: 20,
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
         Text(
-          'Welcome Back',
+          'Welcome to Taskify',
           style: TextStyle(
             fontSize: MediaQuery.sizeOf(context).width * 0.08,
             color: Colors.white,
+            fontWeight: FontWeight.bold,
           ),
         ),
-
+        const SizedBox(height: 30),
         SizedBox(
           width: double.infinity,
-          height: 50,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => LoginScreen()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-
-              side: BorderSide(width: 2, color: Colors.white),
-            ),
-            child: Text(
-              "SIGN IN",
-              style: TextStyle(color: Colors.white, fontSize: 20),
-            ),
-          ),
-        ),
-
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => SignupScreen()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-
-              side: BorderSide(width: 1, color: Colors.white),
-            ),
-            child: Text(
-              "SIGN UP",
-              style: TextStyle(color: Colors.black, fontSize: 20),
-            ),
-          ),
+          height: 60,
+          child: Obx(() {
+            final isLoading = authCtrl.isLoading.value;
+            return ElevatedButton.icon(
+              onPressed: isLoading ? null : () => authCtrl.signInWithGoogle(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 2,
+              ),
+              icon: isLoading
+                  ? const SizedBox.shrink()
+                  : const Icon(
+                      Icons.g_mobiledata_rounded,
+                      color: Colors.black,
+                      size: 36,
+                    ),
+              label: isLoading
+                  ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.black,
+                        strokeWidth: 3,
+                      ),
+                    )
+                  : const Text(
+                      "Continue with Google",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            );
+          }),
         ),
       ],
     );
@@ -110,8 +110,7 @@ class _WelcomescreenState extends State<Welcomescreen> {
 
   Widget _buildCredit() {
     return Column(
-      spacing: 6,
-      children: [
+      children: const [
         Text(
           "By Winner Yun",
           style: TextStyle(
