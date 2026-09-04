@@ -42,8 +42,7 @@ class NotificationController extends GetxController {
 
       if (!item.isAlert && now.isAfter(scheduledDate)) {
         dbController.markNotificationAsAlerted(uid, item.id);
-      }
-      else if (item.isAlert) {
+      } else if (item.isAlert) {
         bool isRecurring =
             item.title.startsWith("Daily") || item.title.startsWith("Routine");
 
@@ -75,7 +74,7 @@ class NotificationController extends GetxController {
       } else if (item.title.startsWith("Routine")) {
         String todayDay = DateFormat('EEEE').format(now);
         if (item.date != todayDay) {
-          return null; // Not today, so don't alert
+          return null; 
         }
 
         return DateTime(
