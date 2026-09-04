@@ -2,14 +2,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:to_do_list_app/config/translate_data.dart';
-import 'package:to_do_list_app/controller/app_controller.dart';
-import 'package:to_do_list_app/controller/auth_controller.dart';
-import 'package:to_do_list_app/routes/routes.dart';
-import 'package:to_do_list_app/services/notification_service.dart';
-import 'package:to_do_list_app/theme/theme.dart';
+import 'package:to_do_list_app/core/localization/translate_data.dart';
+import 'package:to_do_list_app/data/controller/app_controller.dart';
+import 'package:to_do_list_app/data/controller/auth_controller.dart';
+import 'package:to_do_list_app/core/routes/routes.dart';
+import 'package:to_do_list_app/data/services/notification_service.dart';
+import 'package:to_do_list_app/core/theme/theme.dart';
 
-import 'firebase_options.dart';
+import 'package:to_do_list_app/core/config/firebase_options.dart';
 
 ValueNotifier<bool> isDarkMode = ValueNotifier(false);
 
@@ -38,11 +38,9 @@ class MainApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           title: 'Taskify',
 
-          // --- TRANSLATION CONFIGURATION ---
           translations: AppTranslations(),
           locale: const Locale('en', 'US'),
           fallbackLocale: const Locale('en', 'US'),
-          // ---------------------------------
           themeMode: dark ? ThemeMode.dark : ThemeMode.light,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
