@@ -11,7 +11,7 @@ import 'package:to_do_list_app/data/controller/auth_controller.dart';
 import 'package:to_do_list_app/data/controller/db_controller.dart';
 import 'package:to_do_list_app/data/local/local_db_helper.dart';
 import 'package:to_do_list_app/main.dart';
-import 'package:to_do_list_app/modules/settings/change_password_screen.dart';
+import 'package:to_do_list_app/modules/settings/about_us_page.dart';
 
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
@@ -118,11 +118,11 @@ class _SettingScreenState extends State<SettingScreen> {
                                 ),
                               ),
                               _buildSettingTile(
-                                icon: Icons.lock_outline,
-                                title: 'change_pass'.tr,
-                                iconColor: Colors.purpleAccent,
+                                icon: Icons.info_outline_rounded,
+                                title: 'about_us'.tr,
+                                iconColor: Colors.teal,
                                 onTap: () =>
-                                    Get.to(() => const ChangePasswordScreen()),
+                                    Get.to(() => AboutUsPage(dark: dark)),
                                 dark: dark,
                               ),
                             ],
@@ -169,7 +169,6 @@ class _SettingScreenState extends State<SettingScreen> {
       },
     );
   }
-
 
   Widget _buildLanguageTile(bool dark) {
     bool isKhmer = Get.locale?.languageCode == 'km';
@@ -574,7 +573,7 @@ class _SettingScreenState extends State<SettingScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: Text("save".tr),
+              child: Text("save".tr, style: TextStyle(color: Colors.white)),
             ),
           ],
         );
