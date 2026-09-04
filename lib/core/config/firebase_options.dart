@@ -1,0 +1,86 @@
+import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+
+/// Default [FirebaseOptions] for use with your Firebase apps.
+///
+/// Example:
+/// ```dart
+/// import 'firebase_options.dart';
+/// // ...
+/// await Firebase.initializeApp(
+///   options: DefaultFirebaseOptions.currentPlatform,
+/// );
+/// ```
+class DefaultFirebaseOptions {
+  static FirebaseOptions get currentPlatform {
+    if (kIsWeb) {
+      return web;
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return android;
+      case TargetPlatform.iOS:
+        return ios;
+      case TargetPlatform.macOS:
+        return macos;
+      case TargetPlatform.windows:
+        return windows;
+      case TargetPlatform.linux:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for linux - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
+      default:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions are not supported for this platform.',
+        );
+    }
+  }
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyAJiztNGB4zQISqRz6N--v9llfm2X6AuXw',
+    appId: '1:289517952034:web:6ecee647347895520e3e7b',
+    messagingSenderId: '289517952034',
+    projectId: 'to-do-list-app-2025-73f94',
+    authDomain: 'to-do-list-app-2025-73f94.firebaseapp.com',
+    storageBucket: 'to-do-list-app-2025-73f94.firebasestorage.app',
+    measurementId: 'G-SBGDZJWTQ3',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyA_pe-2_vw3LkVWU2usWAnBsEb7SqbrTXo',
+    appId: '1:289517952034:android:d47fe006269ddfb50e3e7b',
+    messagingSenderId: '289517952034',
+    projectId: 'to-do-list-app-2025-73f94',
+    storageBucket: 'to-do-list-app-2025-73f94.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyBvYK5CqKqACRsZnEwnE1iIb3k4-o5uX24',
+    appId: '1:289517952034:ios:4ec425387aa61eaf0e3e7b',
+    messagingSenderId: '289517952034',
+    projectId: 'to-do-list-app-2025-73f94',
+    storageBucket: 'to-do-list-app-2025-73f94.firebasestorage.app',
+    iosBundleId: 'com.example.toDoListApp',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyBvYK5CqKqACRsZnEwnE1iIb3k4-o5uX24',
+    appId: '1:289517952034:ios:4ec425387aa61eaf0e3e7b',
+    messagingSenderId: '289517952034',
+    projectId: 'to-do-list-app-2025-73f94',
+    storageBucket: 'to-do-list-app-2025-73f94.firebasestorage.app',
+    iosBundleId: 'com.example.toDoListApp',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyAJiztNGB4zQISqRz6N--v9llfm2X6AuXw',
+    appId: '1:289517952034:web:b57217d80e9752ca0e3e7b',
+    messagingSenderId: '289517952034',
+    projectId: 'to-do-list-app-2025-73f94',
+    authDomain: 'to-do-list-app-2025-73f94.firebaseapp.com',
+    storageBucket: 'to-do-list-app-2025-73f94.firebasestorage.app',
+    measurementId: 'G-81P6WXREXB',
+  );
+}
