@@ -12,6 +12,9 @@ class AppTheme {
       bodyColor: AppColors.text(false),
       displayColor: AppColors.text(false),
     ),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: AppColors.primary(false),
+    ),
   );
 
   static ThemeData darkTheme = ThemeData(
@@ -22,6 +25,9 @@ class AppTheme {
     textTheme: GoogleFonts.notoSansKhmerTextTheme().apply(
       bodyColor: AppColors.text(true),
       displayColor: AppColors.text(true),
+    ),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: AppColors.primary(true),
     ),
   );
 }

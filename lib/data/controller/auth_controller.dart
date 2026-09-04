@@ -1,14 +1,17 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:to_do_list_app/data/controller/db_controller.dart';
 import 'package:to_do_list_app/data/models/user_model.dart';
 
 class AuthController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   final DbController dbController = Get.put(DbController());
 
   final Rx<User?> firebaseUser = Rx<User?>(null);
+  final RxBool isLoading = false.obs;
 
   @override
   void onReady() {
@@ -16,93 +19,56 @@ class AuthController extends GetxController {
     firebaseUser.bindStream(_auth.authStateChanges());
   }
 
-  Future<void> register(String email, String password, String name) async {
+  Future<void> signInWithGoogle() async {
+    isLoading.value = true;
     try {
-      UserCredential cred = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      UserModel newUser = UserModel(
-        id: cred.user!.uid,
-        name: name,
-        email: email,
-        password: "", // Security: Don't save password
-        createdAt: DateTime.now().toString(),
-        profileImage: "",
-        tasks: [],
-        notifications: [],
-        reminders: [],
-      );
-
-      if (cred.user != null) {
-        await dbController.createUserInFirestore(newUser, cred.user!.uid);
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        isLoading.value = false;
+        return;
       }
 
-      Get.offAllNamed('/appmain');
-
-      Get.snackbar(
-        "Success",
-        "Account created!",
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
-    } on FirebaseAuthException catch (e) {
-      String message = '';
-      if (e.code == 'email-already-in-use') {
-        message = 'This email is already signed up. Go to sign in.';
-      } else if (e.code == 'weak-password') {
-        message = 'The password provided is too weak.';
-      } else if (e.code == 'invalid-email') {
-        message = 'The email address is badly formatted.';
-      } else {
-        message = e.message ?? "Registration failed.";
+
+      final userCredential = await _auth.signInWithCredential(credential);
+      final user = userCredential.user;
+
+      if (user != null) {
+        UserModel newUser = UserModel(
+          id: user.uid,
+          name: user.displayName ?? 'Google User',
+          email: user.email ?? '',
+          password: "",
+          createdAt: DateTime.now().toString(),
+          profileImage: user.photoURL ?? "",
+          tasks: [],
+          notifications: [],
+          reminders: [],
+        );
+        
+        await dbController.createUserInFirestore(newUser, user.uid);
       }
-      Get.snackbar(
-        "Sign Up Failed",
-        message,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        "Error",
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
 
-  Future<void> login(String email, String password) async {
-    try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-
+      isLoading.value = false;
       Get.offAllNamed('/appmain');
     } on FirebaseAuthException catch (e) {
-      String message = '';
-      if (e.code == 'user-not-found' ||
-          e.code == 'wrong-password' ||
-          e.code == 'invalid-credential') {
-        message = 'Invalid email or password';
-      } else if (e.code == 'invalid-email') {
-        message = 'The email address is badly formatted.';
-      } else {
-        message = e.message ?? "Authentication failed.";
-      }
+      isLoading.value = false;
       Get.snackbar(
         "Login Failed",
-        message,
+        e.message ?? "Authentication failed.",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
     } catch (e) {
+      isLoading.value = false;
       Get.snackbar(
         "Error",
-        "An unexpected error occurred.",
+        "Google sign-in failed. Please try again.",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -111,7 +77,10 @@ class AuthController extends GetxController {
   }
 
   Future<void> logout() async {
-    await _auth.signOut();
+    await Future.wait([
+      _auth.signOut(),
+      _googleSignIn.signOut(),
+    ]);
     Get.offAllNamed('/welcome');
   }
 }
